@@ -1,0 +1,114 @@
+#include <bits/stdc++.h>
+using namespace std;
+
+// Trie node: next for digits 0-9, suffix link, list of pattern lengths that end here
+struct Node {
+    array<int,10> next;
+    int link;
+    vector<int> lens;      // lengths of patterns that end at this node
+    Node() {
+        next.fill(-1);
+        link = -1;
+    }
+};
+
+vector<Node> trie(1);
+
+// insert pattern string s into trie and record its length
+void insertPattern(const string &s) {
+    int v = 0;
+    for (char ch : s) {
+        int c = ch - '0';
+        if (trie[v].next[c] == -1) {
+            trie[v].next[c] = trie.size();
+            trie.emplace_back();
+        }
+        v = trie[v].next[c];
+    }
+    trie[v].lens.push_back((int)s.size());
+}
+
+// build suffix links and propagate pattern lengths through links
+void buildAutomaton() {
+    queue<int> q;
+    trie[0].link = 0;
+    for (int c = 0; c < 10; ++c) {
+        if (trie[0].next[c] != -1) {
+            trie[trie[0].next[c]].link = 0;
+            q.push(trie[0].next[c]);
+        } else {
+            trie[0].next[c] = 0; // important: set missing transitions to root
+        }
+    }
+
+    while (!q.empty()) {
+        int v = q.front(); q.pop();
+        int link = trie[v].link;
+        // inherit pattern lengths from link
+        if (!trie[link].lens.empty()) {
+            trie[v].lens.insert(trie[v].lens.end(),
+                                trie[link].lens.begin(), trie[link].lens.end());
+        }
+        for (int c = 0; c < 10; ++c) {
+            int u = trie[v].next[c];
+            if (u != -1) {
+                trie[u].link = trie[trie[v].link].next[c];
+                q.push(u);
+            } else {
+                trie[v].next[c] = trie[trie[v].link].next[c];
+            }
+        }
+    }
+}
+
+// Count matches but only those whose starting char != '0'
+long long countMatches(const string &a) {
+    int v = 0;
+    long long ans = 0;
+    int n = (int)a.size();
+
+    for (int i = 0; i < n; ++i) {
+        int c = a[i] - '0';
+        v = trie[v].next[c];
+        if (!trie[v].lens.empty()) {
+            for (int L : trie[v].lens) {
+                int start = i - L + 1;
+                if (start >= 0 && a[start] != '0') ans++;
+            }
+        }
+    }
+    return ans;
+}
+
+int main() {
+    ios::sync_with_stdio(false);
+    cin.tie(nullptr);
+
+    // Precompute powers of two as strings up to 2^800
+    string val = "1";
+    for (int i = 0; i <= 800; ++i) {
+        insertPattern(val);
+        // multiply val by 2
+        string res;
+        int carry = 0;
+        for (int j = (int)val.size()-1; j >= 0; --j) {
+            int prod = (val[j]-'0') * 2 + carry;
+            res.push_back(char('0' + (prod % 10)));
+            carry = prod / 10;
+        }
+        if (carry) res.push_back(char('0' + carry));
+        reverse(res.begin(), res.end());
+        val = res;
+    }
+
+    buildAutomaton();
+
+    int T;
+    if (!(cin >> T)) return 0;
+    string a;
+    while (T--) {
+        cin >> a;
+        cout << countMatches(a) << '\n';
+    }
+    return 0;
+}
